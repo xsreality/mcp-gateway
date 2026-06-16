@@ -3,3 +3,6 @@ dist/
 *.log
 *.tgz
 .DS_Store
+
+# Internal planning doc, not published
+IMPLEMENTATION_PLAN.md
