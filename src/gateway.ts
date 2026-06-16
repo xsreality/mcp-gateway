@@ -62,6 +62,7 @@ export class Gateway {
   private wire(): void {
     // downstream (local client) -> upstream (remote server): may need auth.
     this.downstream.onmessage = (msg) => {
+      if (this.closing) return;
       this.log.debug({ dir: "client→remote", msg }, "relay");
       void this.sendUpstream(msg).catch((err: unknown) => {
         this.log.error({ err }, "upstream relay failed");

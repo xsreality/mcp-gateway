@@ -17,8 +17,11 @@ const SUCCESS_HTML =
  */
 export class CallbackServer {
   private server?: http.Server;
-  private resolveCode?: (code: string) => void;
-  private rejectCode?: (err: Error) => void;
+  private pending?: {
+    resolve: (code: string) => void;
+    reject: (err: Error) => void;
+    timer: NodeJS.Timeout;
+  };
   private boundPort?: number;
 
   constructor(
@@ -56,13 +59,22 @@ export class CallbackServer {
   /** Resolves with the authorization code once the browser redirect arrives. */
   waitForCode(timeoutMs: number): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      this.resolveCode = resolve;
-      this.rejectCode = reject;
       const timer = setTimeout(() => {
-        reject(new Error(`timed out after ${Math.round(timeoutMs / 1000)}s waiting for authorization`));
+        this.settle(new Error(`timed out after ${Math.round(timeoutMs / 1000)}s waiting for authorization`));
       }, timeoutMs);
       timer.unref();
+      this.pending = { resolve, reject, timer };
     });
+  }
+
+  /** Settle the pending waitForCode exactly once, clearing its timeout. */
+  private settle(result: Error | { code: string }): void {
+    const p = this.pending;
+    if (!p) return;
+    this.pending = undefined;
+    clearTimeout(p.timer);
+    if (result instanceof Error) p.reject(result);
+    else p.resolve(result.code);
   }
 
   private handle(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -92,15 +104,17 @@ export class CallbackServer {
     }
 
     res.writeHead(200, { "content-type": "text/html" }).end(SUCCESS_HTML);
-    this.resolveCode?.(code);
+    this.settle({ code });
   }
 
   private fail(res: http.ServerResponse, status: number, message: string): void {
     res.writeHead(status, { "content-type": "text/plain" }).end(message);
-    this.rejectCode?.(new Error(message));
+    this.settle(new Error(message));
   }
 
   async close(): Promise<void> {
+    // Don't leave a waitForCode() awaiter hanging if we shut down mid-flow.
+    this.settle(new Error("callback server closed before authorization completed"));
     if (!this.server) return;
     await new Promise<void>((resolve) => this.server!.close(() => resolve()));
     this.server = undefined;
@@ -110,10 +124,17 @@ export class CallbackServer {
 /** Open a URL in the system browser without an extra dependency. */
 export function openBrowser(url: string, log: Logger): void {
   const platform = process.platform;
-  const cmd = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+  const isWin = platform === "win32";
+  const cmd = platform === "darwin" ? "open" : isWin ? "cmd" : "xdg-open";
+  // On Windows the URL must be quoted: cmd.exe treats `&` (always present in
+  // OAuth query strings) as a command separator, which would truncate the URL.
+  const args = isWin ? ["/c", "start", '""', `"${url}"`] : [url];
   try {
-    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    const child = spawn(cmd, args, {
+      stdio: "ignore",
+      detached: true,
+      windowsVerbatimArguments: isWin,
+    });
     child.on("error", (err) => log.warn({ err }, "failed to launch browser"));
     child.unref();
   } catch (err) {

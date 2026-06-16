@@ -28,6 +28,8 @@ export interface StoredAuth {
 export class AuthStore {
   private readonly file: string;
   private cache: StoredAuth | undefined;
+  /** Serializes read-modify-write cycles so concurrent patches don't lose updates. */
+  private writeChain: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly dir: string,
@@ -59,24 +61,28 @@ export class AuthStore {
     await fs.rename(tmp, this.file);
   }
 
+  /** Run a read-modify-write cycle serialized against all other mutations. */
+  private mutate(fn: (current: StoredAuth) => StoredAuth): Promise<void> {
+    const next = this.writeChain.then(async () => {
+      this.cache = fn(await this.load());
+      await this.save();
+    });
+    // Keep the chain alive even if one mutation rejects.
+    this.writeChain = next.catch(() => {});
+    return next;
+  }
+
   async patch(update: Partial<StoredAuth>): Promise<void> {
-    const current = await this.load();
-    this.cache = { ...current, ...update };
-    await this.save();
+    return this.mutate((current) => ({ ...current, ...update }));
   }
 
   /** Remove credentials by scope; used by invalidateCredentials. */
   async clear(scope: "all" | "client" | "tokens" | "verifier"): Promise<void> {
-    const current = await this.load();
-    if (scope === "all") {
-      this.cache = {};
-    } else if (scope === "client") {
-      this.cache = { ...current, clientInformation: undefined };
-    } else if (scope === "tokens") {
-      this.cache = { ...current, tokens: undefined };
-    } else {
-      this.cache = { ...current, codeVerifier: undefined };
-    }
-    await this.save();
+    return this.mutate((current) => {
+      if (scope === "all") return {};
+      if (scope === "client") return { ...current, clientInformation: undefined };
+      if (scope === "tokens") return { ...current, tokens: undefined };
+      return { ...current, codeVerifier: undefined };
+    });
   }
 }
