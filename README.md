@@ -114,4 +114,4 @@ a file.
 
 ## License
 
-See repository.
+[MIT](LICENSE) © Abhinav Sonkar

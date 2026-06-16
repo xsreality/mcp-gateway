@@ -3,6 +3,28 @@
   "version": "0.1.0",
   "description": "CLI gateway that exposes a local STDIO MCP endpoint and proxies a remote Streamable-HTTP MCP server (OAuth 2.1 + DCR).",
   "type": "module",
+  "license": "MIT",
+  "author": "Abhinav Sonkar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xsreality/mcp-gateway.git"
+  },
+  "homepage": "https://github.com/xsreality/mcp-gateway#readme",
+  "bugs": {
+    "url": "https://github.com/xsreality/mcp-gateway/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "gateway",
+    "proxy",
+    "stdio",
+    "streamable-http",
+    "oauth",
+    "oauth2",
+    "dynamic-client-registration",
+    "cli"
+  ],
   "bin": {
     "mcp-gateway": "dist/cli.js"
   },
@@ -13,13 +35,12 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "start": "node dist/cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint . --ext .ts"
+    "test": "npm run build && node test/manual-relay.mjs && node test/manual-oauth.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -28,7 +49,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "typescript": "^5.7.0"
   }
 }
