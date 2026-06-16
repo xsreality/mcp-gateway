@@ -1,6 +1,6 @@
 {
   "name": "@xsreality/mcp-gateway",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI gateway that exposes a local STDIO MCP endpoint and proxies a remote Streamable-HTTP MCP server (OAuth 2.1 + DCR).",
   "type": "module",
   "license": "MIT",
