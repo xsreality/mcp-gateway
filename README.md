@@ -9,7 +9,7 @@ Use it to connect stdio-only MCP clients (Claude Desktop, IDE MCP integrations, 
 MCP server as a subprocess) to remote, OAuth-protected MCP servers that those clients can't reach directly.
 
 ```
-┌──────────────┐   stdio    ┌──────────────┐   Streamable HTTP + OAuth   ┌──────────────┐
+┌──────────────┐   stdio    ┌──────────────┐  Streamable HTTP + OAuth   ┌──────────────┐
 │ MCP client   │ ─────────▶ │ mcp-gateway  │ ─────────────────────────▶ │ Remote MCP   │
 │ (Claude etc.)│ ◀───────── │              │ ◀───────────────────────── │ server       │
 └──────────────┘            └──────────────┘                            └──────────────┘
@@ -25,16 +25,25 @@ notification the remote server offers passes straight through.
 ## Install
 
 ```bash
-git clone <repo> && cd mcpgateway
+npm install -g @xsreality/mcp-gateway
+```
+
+Or run without installing:
+
+```bash
+npx @xsreality/mcp-gateway --url https://mcp.example.com/mcp
+```
+
+### From source
+
+```bash
+git clone https://github.com/xsreality/mcp-gateway.git && cd mcp-gateway
 npm install
 npm run build
 npm link          # puts `mcp-gateway` on your PATH
 ```
 
-`npm link` symlinks the global command at `dist/cli.js`, so after pulling changes you only need
-`npm run build` again. To remove it: `npm rm -g mcp-gateway`.
-
-Prefer a real install instead of a symlink? Use `npm install -g .` (re-run after each change).
+To remove the global link: `npm rm -g @xsreality/mcp-gateway`.
 
 ## Usage
 
@@ -54,8 +63,8 @@ Point your client at the `mcp-gateway` command:
 {
   "mcpServers": {
     "remote": {
-      "command": "mcp-gateway",
-      "args": ["--url", "https://mcp.example.com/mcp", "--scope", "read write"]
+      "command": "npx",
+      "args": ["-y", "@xsreality/mcp-gateway", "--url", "https://mcp.example.com/mcp", "--scope", "read write"]
     }
   }
 }
