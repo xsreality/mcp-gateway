@@ -33,20 +33,20 @@ afterEach(async () => {
 
 describe("AuthStore.load", () => {
   it("returns an empty object when no file exists (no warning)", async () => {
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     expect(await store.load()).toEqual({});
     expect(log.warn).not.toHaveBeenCalled();
   });
 
   it("treats a corrupt file as empty and warns once", async () => {
     await fs.writeFile(storeFile(dir, URI), "{ not json");
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     expect(await store.load()).toEqual({});
     expect(log.warn).toHaveBeenCalledTimes(1);
   });
 
   it("caches the loaded value (second load doesn't re-read disk)", async () => {
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     await store.patch({ redirectPort: 5000 });
     // Corrupt the file on disk; a cached load must not see it.
     await fs.writeFile(storeFile(dir, URI), "garbage");
@@ -56,13 +56,13 @@ describe("AuthStore.load", () => {
 
 describe("AuthStore.patch", () => {
   it("persists values that a fresh store then reads back", async () => {
-    await new AuthStore(dir, URI, log).patch({ redirectPort: 12345 });
-    const reopened = new AuthStore(dir, URI, log);
+    await AuthStore.file(dir, URI, log).patch({ redirectPort: 12345 });
+    const reopened = AuthStore.file(dir, URI, log);
     expect((await reopened.load()).redirectPort).toBe(12345);
   });
 
   it("merges successive patches rather than overwriting", async () => {
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     await store.patch({ redirectPort: 8080 });
     await store.patch({ codeVerifier: "verifier-abc" });
     expect(await store.load()).toMatchObject({
@@ -72,13 +72,13 @@ describe("AuthStore.patch", () => {
   });
 
   it("serializes concurrent patches without losing updates", async () => {
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     await Promise.all([
       store.patch({ redirectPort: 1 }),
       store.patch({ codeVerifier: "v" }),
       store.patch({ tokens: { access_token: "a", token_type: "Bearer" } }),
     ]);
-    const result = await new AuthStore(dir, URI, log).load();
+    const result = await AuthStore.file(dir, URI, log).load();
     expect(result.codeVerifier).toBe("v");
     expect(result.tokens?.access_token).toBe("a");
     expect(result.redirectPort).toBe(1);
@@ -87,7 +87,7 @@ describe("AuthStore.patch", () => {
 
 describe("AuthStore.clear", () => {
   async function seed() {
-    const store = new AuthStore(dir, URI, log);
+    const store = AuthStore.file(dir, URI, log);
     await store.patch({
       redirectPort: 9000,
       codeVerifier: "verifier",
@@ -132,14 +132,14 @@ describe("AuthStore.clear", () => {
 
 describe("AuthStore on-disk layout", () => {
   it("keys the filename by sha256 of the canonical URI", async () => {
-    await new AuthStore(dir, URI, log).patch({ redirectPort: 1 });
+    await AuthStore.file(dir, URI, log).patch({ redirectPort: 1 });
     const files = await fs.readdir(dir);
     expect(files).toEqual([path.basename(storeFile(dir, URI))]);
   });
 
   it("uses different files for different servers", async () => {
-    await new AuthStore(dir, "https://a.example/mcp", log).patch({ redirectPort: 1 });
-    await new AuthStore(dir, "https://b.example/mcp", log).patch({ redirectPort: 2 });
+    await AuthStore.file(dir, "https://a.example/mcp", log).patch({ redirectPort: 1 });
+    await AuthStore.file(dir, "https://b.example/mcp", log).patch({ redirectPort: 2 });
     expect((await fs.readdir(dir)).length).toBe(2);
   });
 
@@ -148,14 +148,14 @@ describe("AuthStore on-disk layout", () => {
     if (process.platform === "win32") return;
     // Point at a not-yet-created subdir so save() is what mkdirs it.
     const subdir = path.join(dir, "nested");
-    const store = new AuthStore(subdir, URI, log);
+    const store = AuthStore.file(subdir, URI, log);
     await store.patch({ redirectPort: 1 });
     expect((await fs.stat(subdir)).mode & 0o777).toBe(0o700);
     expect((await fs.stat(storeFile(subdir, URI))).mode & 0o777).toBe(0o600);
   });
 
   it("leaves no .tmp file behind after the atomic write", async () => {
-    await new AuthStore(dir, URI, log).patch({ redirectPort: 1 });
+    await AuthStore.file(dir, URI, log).patch({ redirectPort: 1 });
     expect((await fs.readdir(dir)).some((f) => f.endsWith(".tmp"))).toBe(false);
   });
 });

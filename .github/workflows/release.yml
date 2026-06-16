@@ -1,0 +1,51 @@
+name: Release
+
+# Publishes to npm when a GitHub release is published. Flow per version:
+#   bump version -> push to main -> create a GitHub release tagged vX.Y.Z.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to an exact Node patch whose bundled npm (11.13.0) already
+      # satisfies the npm >= 11.5.1 requirement for trusted publishing. Using
+      # the npm that ships with Node avoids an extra `npm install -g` and the
+      # supply-chain surface of an unpinned upgrade.
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.16.0
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Release tag '$GITHUB_REF_NAME' does not match package.json version '$PKG'" >&2
+            exit 1
+          fi
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: "Test (vitest: unit + e2e relay/OAuth)"
+        run: npm test
+
+      # Authenticates via OIDC against the npm trusted publisher configured for
+      # this package (no NPM_TOKEN needed). Provenance is attached automatically.
+      - name: Publish to npm
+        run: npm publish --access public

@@ -83,7 +83,8 @@ Point your client at the `mcp-gateway` command:
 | `--no-dcr` | Disable Dynamic Client Registration (requires `--client-id`) | DCR enabled |
 | `--callback-port <port>` | Fixed loopback port for the OAuth redirect | auto (persisted) |
 | `--auth-timeout <seconds>` | How long to wait for you to finish authorizing in the browser | `300` |
-| `--token-store <dir>` | Where tokens + client registration are stored | `~/.mcp-gateway` |
+| `--credential-store <mode>` | Where credentials persist: `keychain` (OS keychain), `file` (on-disk), or `auto` | `auto` (`$MCP_GATEWAY_CREDENTIAL_STORE`) |
+| `--token-store <dir>` | Directory for `file`-stored tokens + client registration | `~/.mcp-gateway` |
 | `--no-browser` | Print the authorization URL instead of opening a browser (headless) | opens browser |
 | `--log-level <level>` | `trace` `debug` `info` `warn` `error` `silent` (stderr/file only) | `info` |
 | `--log-file <path>` | Write logs to a file instead of stderr | stderr |
@@ -105,9 +106,14 @@ config blocks.
 
 ### Where credentials live
 
-Tokens, the registered client, and the chosen callback port are stored as one JSON file per server (keyed by
-the server's canonical URL) under `--token-store` (default `~/.mcp-gateway`), written with `0600` permissions.
-Delete that directory to force re-authorization.
+Tokens, the registered client, and the chosen callback port are stored per server, keyed by the server's
+canonical URL. By default (`--credential-store auto`) they go into the **OS keychain** (macOS Keychain,
+Windows Credential Manager, Linux Secret Service) under the service name `mcp-gateway`, falling back to
+on-disk JSON when no keychain is reachable (headless Linux, CI). The first time the keychain is used, any
+existing `~/.mcp-gateway` file for that server is migrated into it and the plaintext file deleted.
+
+Force a backend with `--credential-store keychain` or `--credential-store file`. In `file` mode the blob is
+one JSON file per server under `--token-store` (default `~/.mcp-gateway`), written `0600`.
 
 ## Logging
 
@@ -119,7 +125,8 @@ a file.
 
 - **Browser didn't open** — copy the URL printed on stderr, or run with `--no-browser`.
 - **`authorization timed out`** — you didn't finish within `--auth-timeout`; just reconnect to retry.
-- **Re-authorize from scratch** — delete the server's file under `~/.mcp-gateway` (or the whole directory).
+- **Re-authorize from scratch** — in `file` mode delete the server's file under `~/.mcp-gateway`; in keychain
+  mode delete the `mcp-gateway` entry for that server URL from your OS keychain.
 - **Corporate proxy / extra auth** — forward static headers with repeated `--header "Key: value"`.
 - **Stuck after the server changed its auth** — clear the token store; cached discovery/registration may be stale.
 

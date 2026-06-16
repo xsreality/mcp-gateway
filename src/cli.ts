@@ -3,6 +3,7 @@ import { Command, InvalidArgumentError, Option } from "commander";
 import {
   type Config,
   ConfigError,
+  type CredentialStore,
   defaultTokenStoreDir,
   parseHeaders,
   parseUrl,
@@ -20,6 +21,7 @@ interface RawOptions {
   dcr: boolean;
   callbackPort?: number;
   authTimeout: number;
+  credentialStore: string;
   tokenStore: string;
   browser: boolean;
   logLevel: string;
@@ -27,6 +29,7 @@ interface RawOptions {
 }
 
 const LOG_LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "silent"];
+const CREDENTIAL_STORES: CredentialStore[] = ["auto", "keychain", "file"];
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -61,7 +64,15 @@ function buildProgram(): Command {
     .option("--no-dcr", "Disable Dynamic Client Registration")
     .option("--callback-port <port>", "Fixed loopback OAuth callback port", intArg("--callback-port"))
     .option("--auth-timeout <seconds>", "Max wait for browser authorization", intArg("--auth-timeout"), 300)
-    .option("--token-store <dir>", "Directory for tokens + client registration", defaultTokenStoreDir())
+    .addOption(
+      new Option(
+        "--credential-store <mode>",
+        "Where to persist credentials: keychain (OS keychain), file (on-disk), or auto",
+      )
+        .choices(CREDENTIAL_STORES)
+        .default(process.env.MCP_GATEWAY_CREDENTIAL_STORE ?? "auto"),
+    )
+    .option("--token-store <dir>", "Directory for file-stored tokens + client registration", defaultTokenStoreDir())
     .option("--no-browser", "Print the authorization URL instead of opening a browser")
     .addOption(
       new Option("--log-level <level>", "Log verbosity (stderr/file only)")
@@ -78,6 +89,9 @@ function resolveConfig(opts: RawOptions): Config {
   if (!LOG_LEVELS.includes(opts.logLevel as LogLevel)) {
     throw new InvalidArgumentError(`invalid --log-level "${opts.logLevel}"`);
   }
+  if (!CREDENTIAL_STORES.includes(opts.credentialStore as CredentialStore)) {
+    throw new InvalidArgumentError(`invalid --credential-store "${opts.credentialStore}"`);
+  }
   if (!opts.dcr && !opts.clientId) {
     throw new ConfigError("--no-dcr requires --client-id to be provided");
   }
@@ -91,6 +105,7 @@ function resolveConfig(opts: RawOptions): Config {
     dcr: opts.dcr,
     callbackPort: opts.callbackPort,
     authTimeoutSec: opts.authTimeout,
+    credentialStore: opts.credentialStore as CredentialStore,
     tokenStoreDir: opts.tokenStore,
     openBrowser: opts.browser,
     logLevel: opts.logLevel as LogLevel,
