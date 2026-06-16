@@ -3,6 +3,14 @@ import path from "node:path";
 import type { LogLevel } from "./log.js";
 
 /**
+ * Where credentials are persisted:
+ * - `auto`     — OS keychain when available, else file storage (default).
+ * - `keychain` — OS keychain only; error out if it's unavailable.
+ * - `file`     — on-disk JSON under `tokenStoreDir`.
+ */
+export type CredentialStore = "auto" | "keychain" | "file";
+
+/**
  * Resolved gateway configuration.
  */
 export interface Config {
@@ -28,7 +36,9 @@ export interface Config {
   callbackPort?: number;
   /** Max seconds to wait for the user to complete browser authorization. */
   authTimeoutSec: number;
-  /** Directory holding per-server tokens + registration. */
+  /** Where credentials are persisted (OS keychain vs. on-disk file). */
+  credentialStore: CredentialStore;
+  /** Directory holding per-server tokens + registration when using file storage. */
   tokenStoreDir: string;
   /** Open the system browser automatically (false => print the URL). */
   openBrowser: boolean;

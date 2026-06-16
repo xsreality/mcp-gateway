@@ -48,7 +48,9 @@ Source in `src/` (compiles to `dist/`):
 | `upstream.ts` | Builds `StreamableHTTPClientTransport` (with the `authProvider`). |
 | `log.ts` | pino logger — **stderr/file only**. |
 | `oauth/canonical.ts` | RFC 8707 canonical resource URI (also the per-server storage key). |
-| `oauth/store.ts` | Per-server JSON file: tokens, DCR client info, PKCE verifier, callback port. `0600`/`0700`, atomic write. |
+| `oauth/store.ts` | `AuthStore` (JSON parse/merge/cache/serialize + corruption tolerance) over a `SecretBackend`; ships `FileBackend` (per-server JSON, `0600`/`0700`, atomic write). Holds tokens, DCR client info, PKCE verifier, callback port. |
+| `oauth/keychain.ts` | `KeychainBackend` + `openKeychain` — stores the blob in the OS keychain via `@napi-rs/keyring` (lazy dynamic import; throws `KeychainUnavailable`). |
+| `oauth/store-factory.ts` | `createAuthStore` — picks backend from `--credential-store` (`auto`/`keychain`/`file`), auto-falls back to file, migrates a legacy on-disk blob into the keychain. |
 | `oauth/callback.ts` | 127.0.0.1 loopback server that captures the auth code (validates `state`) + a dependency-free browser launcher. |
 | `oauth/provider.ts` | `OAuthClientProvider` impl: DCR, PKCE, tokens, state, browser hand-off. |
 
@@ -79,7 +81,11 @@ RFC 8707 `resource` parameter. We only supply persistence, the redirect URL, and
   stays byte-identical across runs (exact-match requirement).
 - **No token passthrough.** Tokens the gateway obtains are for the remote MCP server only; never forward the
   local client's identity as upstream auth, never reuse a token across servers.
-- **Credentials are keyed by canonical URI** (`canonical.ts`), stored under `~/.mcp-gateway` by default
-  (`--token-store`). Never log tokens or auth codes.
+- **Credentials are keyed by canonical URI** (`canonical.ts`). By default (`--credential-store auto`) they
+  live in the OS keychain (account = canonical URI, service = `mcp-gateway`), falling back to JSON files
+  under `~/.mcp-gateway` (`--token-store`) when no keychain is reachable; `keychain`/`file` force one
+  backend. The keychain native module (`@napi-rs/keyring`) is **lazily** imported so file-only users never
+  load it. On first keychain use any legacy on-disk blob is migrated in and the file deleted. Never log
+  tokens or auth codes.
 - TypeScript is strict ESM with `verbatimModuleSyntax` — use `import type` for type-only imports, and
   `.js` extensions on relative imports.

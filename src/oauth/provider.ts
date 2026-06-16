@@ -9,7 +9,8 @@ import type { Config } from "../config.js";
 import type { Logger } from "../log.js";
 import { canonicalResourceUri } from "./canonical.js";
 import { CallbackServer, openBrowser } from "./callback.js";
-import { AuthStore } from "./store.js";
+import { createAuthStore } from "./store-factory.js";
+import type { AuthStore } from "./store.js";
 
 /**
  * OAuth 2.1 client provider for one remote MCP server. The SDK's `auth()` helper
@@ -30,7 +31,7 @@ export class GatewayOAuthProvider implements OAuthClientProvider {
   /** Async factory: loads persisted state and binds the loopback callback port. */
   static async create(config: Config, log: Logger): Promise<GatewayOAuthProvider> {
     const canonical = canonicalResourceUri(config.url);
-    const store = new AuthStore(config.tokenStoreDir, canonical, log);
+    const store = await createAuthStore(config, canonical, log);
     const stored = await store.load();
     const port = config.callbackPort ?? stored.redirectPort;
     let provider: GatewayOAuthProvider;

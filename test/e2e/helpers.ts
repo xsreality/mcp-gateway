@@ -21,7 +21,12 @@ export class GatewayClient {
   private outBuf = "";
 
   constructor(args: string[]) {
-    this.proc = spawn("node", [CLI, ...args], {
+    // Pin credential storage to the on-disk backend so e2e never depends on (or
+    // mutates) the host's OS keychain. Tests can still override by passing it.
+    const fullArgs = args.includes("--credential-store")
+      ? args
+      : ["--credential-store", "file", ...args];
+    this.proc = spawn("node", [CLI, ...fullArgs], {
       stdio: ["pipe", "pipe", "pipe"],
     }) as ChildProcessWithoutNullStreams;
 
