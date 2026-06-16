@@ -23,6 +23,9 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      - name: Update npm (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
@@ -41,7 +44,7 @@ jobs:
       - name: "Test (vitest: unit + e2e relay/OAuth)"
         run: npm test
 
+      # Authenticates via OIDC against the npm trusted publisher configured for
+      # this package (no NPM_TOKEN needed). Provenance is attached automatically.
       - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

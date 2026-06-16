@@ -88,15 +88,14 @@ Releases are published to npm automatically by
 [`.github/workflows/release.yml`](.github/workflows/release.yml) when a GitHub release is
 published. The package name is `@xsreality/mcp-gateway`.
 
-**One-time setup:** add an npm automation token with publish access to the package as a
-repository secret named `NPM_TOKEN`:
+**Authentication:** the workflow publishes via npm
+[trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — **no `NPM_TOKEN`
+is needed.** The package's trusted publisher on npm is configured to accept this
+repository's `release.yml` workflow, which authenticates with the short-lived `id-token`
+the workflow already requests. Provenance is attached automatically.
 
-```bash
-gh secret set NPM_TOKEN   # paste the token when prompted
-```
-
-Provenance is attached automatically (the workflow has `id-token: write` and the repo is
-public) — no extra configuration needed.
+> Trusted publishing requires npm **≥ 11.5.1**, so the workflow upgrades the npm CLI before
+> publishing (the Node 22 runner ships an older npm).
 
 **To cut a release:**
 
