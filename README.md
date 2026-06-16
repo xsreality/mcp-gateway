@@ -1,5 +1,7 @@
 # mcp-gateway
 
+![CI](https://github.com/xsreality/mcp-gateway/actions/workflows/ci.yml/badge.svg)
+
 A small CLI that exposes a **local STDIO MCP endpoint** and proxies it to a **remote Streamable-HTTP MCP
 server** — handling **OAuth 2.1** (including **Dynamic Client Registration**) on your behalf.
 
