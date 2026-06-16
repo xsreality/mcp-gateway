@@ -94,8 +94,9 @@ is needed.** The package's trusted publisher on npm is configured to accept this
 repository's `release.yml` workflow, which authenticates with the short-lived `id-token`
 the workflow already requests. Provenance is attached automatically.
 
-> Trusted publishing requires npm **≥ 11.5.1**, so the workflow upgrades the npm CLI before
-> publishing (the Node 22 runner ships an older npm).
+> Trusted publishing requires npm **≥ 11.5.1**, so the workflow pins Node to an exact patch
+> whose bundled npm satisfies that (rather than installing a separate npm). Bump the pinned
+> `node-version` in `release.yml` to move npm forward.
 
 **To cut a release:**
 

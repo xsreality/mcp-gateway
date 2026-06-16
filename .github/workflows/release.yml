@@ -16,15 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Pinned to an exact Node patch whose bundled npm (11.13.0) already
+      # satisfies the npm >= 11.5.1 requirement for trusted publishing. Using
+      # the npm that ships with Node avoids an extra `npm install -g` and the
+      # supply-chain surface of an unpinned upgrade.
       - name: Use Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22.x
+          node-version: 24.16.0
           cache: npm
           registry-url: https://registry.npmjs.org
-
-      - name: Update npm (trusted publishing needs npm >= 11.5.1)
-        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
