@@ -17,14 +17,24 @@ on the HTTP side. Target spec: MCP `2025-06-18` (RFC 9728 / 8414 / 7591 / 8707, 
 npm run build         # tsc -> dist/ (ESM). Shebang on cli.ts is preserved.
 npm run typecheck     # tsc --noEmit
 npm link              # put `mcp-gateway` on PATH (symlink to dist/cli.js); rebuild is enough after edits
-node test/manual-relay.mjs   # e2e: no-auth stdio<->http relay
-node test/manual-oauth.mjs   # e2e: full OAuth flow (DCR + PKCE + resource) vs a mock RS+AS
+npm test              # vitest run — unit + e2e (a global setup builds dist/ first)
+npm run test:unit     # vitest run test/unit  (canonical / config / store)
+npm run test:e2e      # vitest run test/e2e   (relay + full OAuth round-trip)
+npm run test:watch    # vitest in watch mode
+npm run coverage      # vitest run --coverage
 mcp-gateway --url https://server/mcp --scope "read write"   # run
 ```
 
-There is no vitest suite yet — the two `test/manual-*.mjs` files are standalone harnesses that spin up a
-real MCP server, run the built gateway, and assert on the round-trip. Run them after the build. Porting
-them to vitest is phase 8 (todo).
+Tests live under `test/`:
+
+- `test/unit/*.test.ts` — import from `src/` directly; cover `oauth/canonical.ts`, `config.ts`,
+  `oauth/store.ts`.
+- `test/e2e/*.test.ts` — spin up a real MCP server (no-auth, and a mock RS+AS for OAuth), run the
+  **built** gateway as a subprocess, and assert on the stdio JSON-RPC round-trip. `test/e2e/helpers.ts`
+  holds the `GatewayClient` driver; `test/global-setup.ts` builds `dist/` once before any test runs.
+
+Because the e2e tests exercise the gateway in a subprocess, v8 coverage only reflects the unit-tested
+modules in-process — the relay/provider/CLI are covered functionally but not as instrumented lines.
 
 ## Architecture
 

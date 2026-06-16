@@ -1,5 +1,5 @@
 {
-  "name": "mcp-gateway",
+  "name": "@xsreality/mcp-gateway",
   "version": "0.1.0",
   "description": "CLI gateway that exposes a local STDIO MCP endpoint and proxies a remote Streamable-HTTP MCP server (OAuth 2.1 + DCR).",
   "type": "module",
@@ -31,6 +31,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
@@ -40,7 +43,11 @@
     "dev": "tsc -p tsconfig.json --watch",
     "start": "node dist/cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node test/manual-relay.mjs && node test/manual-oauth.mjs"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:e2e": "vitest run test/e2e",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -49,6 +56,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "@vitest/coverage-v8": "^3.2.6",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.6",
+    "zod": "^4.4.3"
   }
 }

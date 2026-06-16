@@ -27,5 +27,5 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-      - name: Test (build + e2e relay + OAuth harnesses)
+      - name: Test (vitest: unit + e2e relay/OAuth)
         run: npm test
