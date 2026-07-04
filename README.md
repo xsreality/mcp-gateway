@@ -70,6 +70,28 @@ Point your client at the `mcp-gateway` command:
 }
 ```
 
+For a remote MCP server that uses a static bearer token, pass the header with
+`--header`. For example, Xquik exposes a Streamable-HTTP MCP endpoint for X/Twitter
+data workflows:
+
+```json
+{
+  "mcpServers": {
+    "xquik": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@xsreality/mcp-gateway",
+        "--url",
+        "https://xquik.com/mcp",
+        "--header",
+        "Authorization: Bearer YOUR_XQUIK_API_KEY"
+      ]
+    }
+  }
+}
+```
+
 ## Options
 
 | Flag | Description | Default |
