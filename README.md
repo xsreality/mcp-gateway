@@ -98,6 +98,7 @@ config blocks.
   discovery, RFC 8414 authorization-server metadata, RFC 7591 Dynamic Client Registration, and the RFC 8707
   `resource` indicator.
 - **No setup needed for DCR servers:** the gateway registers itself automatically and caches the client id.
+  If the server no longer knows that id, the gateway registers again.
 - **Servers without DCR:** pass `--client-id` (and `--client-secret` if it's a confidential client) and
   `--no-dcr`.
 - **Headless / remote machines:** use `--no-browser`; the gateway prints the URL to open, and listens on a
@@ -128,7 +129,10 @@ a file.
 - **Re-authorize from scratch** — in `file` mode delete the server's file under `~/.mcp-gateway`; in keychain
   mode delete the `mcp-gateway` entry for that server URL from your OS keychain.
 - **Corporate proxy / extra auth** — forward static headers with repeated `--header "Key: value"`.
-- **Stuck after the server changed its auth** — clear the token store; cached discovery/registration may be stale.
+- **The server behind the URL changed** — the gateway recovers by itself. Before it opens the browser, it checks
+  that the server still knows the cached client id. If the server rejects it, the gateway registers a new
+  client. If a login with a cached client times out or fails, the gateway forgets that client, so the next start
+  registers again. A `--client-id` you set yourself is never dropped.
 
 ## License
 

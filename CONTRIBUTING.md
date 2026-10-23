@@ -69,7 +69,7 @@ Source lives in `src/` and compiles to `dist/`:
 ## Tests
 
 - `test/unit/*.test.ts` import from `src/` directly (canonical URI, config, store, the
-  backend seam, keychain, and the store factory).
+  backend seam, keychain, the store factory, and the provider's stale-client handling).
 - `test/e2e/*.test.ts` spin up a real MCP server (no-auth, plus a mock RS+AS for OAuth)
   and drive the **built** gateway as a subprocess over its stdio channel. e2e is pinned
   to the file credential backend so it never depends on the host's OS keychain.

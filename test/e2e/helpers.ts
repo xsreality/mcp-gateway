@@ -19,6 +19,7 @@ export class GatewayClient {
   private readonly pending = new Map<number | string, (msg: any) => void>();
   private readonly stderrListeners = new Set<(text: string) => void>();
   private outBuf = "";
+  readonly exited: Promise<number | null>;
 
   constructor(args: string[]) {
     // Pin credential storage to the on-disk backend so e2e never depends on (or
@@ -29,6 +30,7 @@ export class GatewayClient {
     this.proc = spawn("node", [CLI, ...fullArgs], {
       stdio: ["pipe", "pipe", "pipe"],
     }) as ChildProcessWithoutNullStreams;
+    this.exited = new Promise((resolve) => this.proc.once("exit", (code) => resolve(code)));
 
     this.proc.stdout.on("data", (chunk: Buffer) => {
       this.outBuf += chunk.toString();
@@ -54,6 +56,19 @@ export class GatewayClient {
   /** Register a stderr observer (used by the OAuth test to "be the browser"). */
   onStderr(fn: (text: string) => void): void {
     this.stderrListeners.add(fn);
+  }
+
+  /** Needs --no-browser, so the gateway prints the authorization URL to stderr. */
+  actAsBrowser(): void {
+    let drove = false;
+    this.onStderr(async (text) => {
+      const m = text.match(/http:\/\/127\.0\.0\.1:\d+\/authorize\S*/);
+      if (!m || drove) return;
+      drove = true;
+      const authResp = await fetch(m[0], { redirect: "manual" });
+      const location = authResp.headers.get("location");
+      if (location) await fetch(location);
+    });
   }
 
   notify(obj: JsonRpc): void {
