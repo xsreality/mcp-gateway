@@ -18,7 +18,7 @@ npm run build         # tsc -> dist/ (ESM). Shebang on cli.ts is preserved.
 npm run typecheck     # tsc --noEmit
 npm link              # put `mcp-gateway` on PATH (symlink to dist/cli.js); rebuild is enough after edits
 npm test              # vitest run — unit + e2e (a global setup builds dist/ first)
-npm run test:unit     # vitest run test/unit  (canonical / config / store)
+npm run test:unit     # vitest run test/unit  (canonical / config / store / provider)
 npm run test:e2e      # vitest run test/e2e   (relay + full OAuth round-trip)
 npm run test:watch    # vitest in watch mode
 npm run coverage      # vitest run --coverage
@@ -28,10 +28,11 @@ mcp-gateway --url https://server/mcp --scope "read write"   # run
 Tests live under `test/`:
 
 - `test/unit/*.test.ts` — import from `src/` directly; cover `oauth/canonical.ts`, `config.ts`,
-  `oauth/store.ts`.
+  `oauth/store.ts`, and the stale-client probe in `oauth/provider.ts`.
 - `test/e2e/*.test.ts` — spin up a real MCP server (no-auth, and a mock RS+AS for OAuth), run the
   **built** gateway as a subprocess, and assert on the stdio JSON-RPC round-trip. `test/e2e/helpers.ts`
-  holds the `GatewayClient` driver; `test/global-setup.ts` builds `dist/` once before any test runs.
+  holds the `GatewayClient` driver; `test/e2e/mock-as.ts` is the mock RS+AS; `test/global-setup.ts` builds
+  `dist/` once before any test runs.
 
 Because the e2e tests exercise the gateway in a subprocess, v8 coverage only reflects the unit-tested
 modules in-process — the relay/provider/CLI are covered functionally but not as instrumented lines.
@@ -69,6 +70,13 @@ calls `provider.redirectToAuthorization` (opens the browser), and the `send()` r
 
 The SDK's `auth()` helper owns discovery (RFC 9728 → 8414), DCR (RFC 7591), token exchange/refresh, and the
 RFC 8707 `resource` parameter. We only supply persistence, the redirect URL, and the browser step.
+
+A cached DCR client can be stale (a different AS now answers on the same URL). Before opening the browser,
+`provider.redirectToAuthorization` probes the authorization URL without following redirects. RFC 6749
+§4.1.2.1 forbids a redirect for an unknown `client_id`, so a 400 answer clears the cached client and
+throws `StaleClientError`; `Gateway.sendUpstream` retries the send once, so the SDK registers again. If the
+browser step with a cached client fails or times out, `provider.authorizationFailed` clears the client. A
+`--client-id` is never probed or cleared.
 
 ## Conventions / gotchas — read before editing
 

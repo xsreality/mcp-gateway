@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
   OAuthClientInformationFull,
@@ -12,6 +12,40 @@ import { CallbackServer, openBrowser } from "./callback.js";
 import { createAuthStore } from "./store-factory.js";
 import type { AuthStore } from "./store.js";
 
+/** Thrown when the cached DCR client is unknown to the AS; the send should be retried to register again. */
+export class StaleClientError extends Error {
+  constructor() {
+    super("cached OAuth client is not registered with the authorization server");
+    this.name = "StaleClientError";
+  }
+}
+
+type ClientProbeResult = "known" | "unknown" | "unsure";
+
+/**
+ * RFC 6749 §4.1.2.1: the AS must not redirect for an invalid client_id, so a 400 means "unknown".
+ * Other 4xx (401/403 from a firewall, 404, 429) say nothing about the client.
+ */
+export async function probeClient(authorizationUrl: URL): Promise<ClientProbeResult> {
+  const url = new URL(authorizationUrl);
+  const verifier = randomBytes(32).toString("base64url");
+  url.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
+  url.searchParams.set("state", randomUUID());
+  try {
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+    await res.body?.cancel();
+    if (res.status >= 300 && res.status < 400) return "known";
+    if (res.status === 400) return "unknown";
+    return "unsure";
+  } catch {
+    return "unsure";
+  }
+}
+
 /**
  * OAuth 2.1 client provider for one remote MCP server. The SDK's `auth()` helper
  * drives discovery (RFC 9728 → RFC 8414), Dynamic Client Registration (RFC 7591),
@@ -20,6 +54,8 @@ import type { AuthStore } from "./store.js";
  */
 export class GatewayOAuthProvider implements OAuthClientProvider {
   private currentState?: string;
+  private registeredThisRun = false;
+  private redirectedWithCachedClient = false;
 
   private constructor(
     private readonly config: Config,
@@ -77,6 +113,7 @@ export class GatewayOAuthProvider implements OAuthClientProvider {
       throw new Error("Dynamic Client Registration is disabled (--no-dcr) and no --client-id was provided");
     }
     this.log.info({ clientId: info.client_id }, "registered OAuth client via DCR");
+    this.registeredThisRun = true;
     await this.store.patch({ clientInformation: info, redirectPort: this.callback.port });
   }
 
@@ -100,6 +137,16 @@ export class GatewayOAuthProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    const usingCachedClient = !this.config.clientId && !this.registeredThisRun;
+    if (usingCachedClient && (await probeClient(authorizationUrl)) === "unknown") {
+      this.log.info(
+        { clientId: authorizationUrl.searchParams.get("client_id") },
+        "cached OAuth client is unknown to the authorization server; registering a new one",
+      );
+      await this.store.clear("client");
+      throw new StaleClientError();
+    }
+    this.redirectedWithCachedClient = usingCachedClient;
     // Start the loopback listener before launching the browser so the redirect
     // can never arrive before we are listening.
     await this.callback.listen();
@@ -111,6 +158,14 @@ export class GatewayOAuthProvider implements OAuthClientProvider {
     } else {
       process.stderr.write(`\nAuthorize this gateway by visiting:\n${authorizationUrl.href}\n\n`);
     }
+  }
+
+  /** Drop a cached DCR client after a failed browser authorization, so the next start registers again. */
+  async authorizationFailed(): Promise<void> {
+    if (!this.redirectedWithCachedClient) return;
+    this.redirectedWithCachedClient = false;
+    this.log.info("authorization with the cached OAuth client failed; it will be registered again on next start");
+    await this.store.clear("client");
   }
 
   async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier" | "discovery"): Promise<void> {

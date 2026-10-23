@@ -6,7 +6,7 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import type { Config } from "./config.js";
 import type { Logger } from "./log.js";
 import { createUpstreamTransport } from "./upstream.js";
-import { GatewayOAuthProvider } from "./oauth/provider.js";
+import { GatewayOAuthProvider, StaleClientError } from "./oauth/provider.js";
 
 /**
  * The gateway transparently relays raw JSON-RPC messages between a local stdio
@@ -77,7 +77,8 @@ export class Gateway {
     this.downstream.onerror = (err) => this.log.error({ err }, "downstream error");
     this.upstream.onerror = (err) => {
       // 401s are reported out-of-band here too, but sendUpstream handles them.
-      if (err instanceof UnauthorizedError) this.log.debug({ err }, "upstream auth challenge");
+      const authSignal = err instanceof UnauthorizedError || err instanceof StaleClientError;
+      if (authSignal) this.log.debug({ err }, "upstream auth challenge");
       else this.log.error({ err }, "upstream error");
     };
 
@@ -92,10 +93,12 @@ export class Gateway {
   }
 
   /** Send to upstream, completing the OAuth flow on a 401 and retrying once. */
-  private async sendUpstream(msg: JSONRPCMessage): Promise<void> {
+  private async sendUpstream(msg: JSONRPCMessage, retriedStale = false): Promise<void> {
     try {
       await this.upstream.send(msg);
     } catch (err) {
+      // The stale client is already cleared, so the retry registers a new one.
+      if (err instanceof StaleClientError && !retriedStale) return this.sendUpstream(msg, true);
       if (!(err instanceof UnauthorizedError)) throw err;
       await this.completeAuthorization();
       await this.upstream.send(msg);
@@ -107,7 +110,13 @@ export class Gateway {
     if (!this.authInFlight) {
       this.authInFlight = (async () => {
         this.log.info("authorization required; waiting for browser approval");
-        const code = await this.provider.callback.waitForCode(this.config.authTimeoutSec * 1000);
+        let code: string;
+        try {
+          code = await this.provider.callback.waitForCode(this.config.authTimeoutSec * 1000);
+        } catch (err) {
+          if (!this.closing) await this.provider.authorizationFailed();
+          throw err;
+        }
         await this.upstream.finishAuth(code);
         this.log.info("authorization complete");
       })().finally(() => {
